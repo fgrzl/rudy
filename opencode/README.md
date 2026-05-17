@@ -9,10 +9,15 @@ It talks to the local service over the OpenAI-compatible HTTP API.
 docker compose up --build
 ```
 
-After Ollama starts, pull the models used by the service defaults:
+After Ollama starts, pull the models Rudy advertises:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
+docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
+docker compose exec ollama ollama pull qwen2.5-coder:32b-instruct
+docker compose exec ollama ollama pull qwen3-coder:30b-a3b-instruct
+docker compose exec ollama ollama pull deepseek-coder-v2:16b-lite-instruct
+docker compose exec ollama ollama pull llama3.1:8b-instruct
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
@@ -27,7 +32,9 @@ Point OpenCode at the local service base URL:
 }
 ```
 
-Use the same model name as the service default unless you intentionally override it.
+Use any of the model IDs Rudy advertises unless you intentionally override it.
+
+If your OpenCode setup expects the root API paths, Rudy also accepts `/chat/completions`, `/models`, and `/embeddings` without the `/v1` prefix.
 
 ## Service defaults
 

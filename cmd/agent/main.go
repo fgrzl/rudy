@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -19,11 +20,17 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(log)
 
+	if err := run(log); err != nil {
+		log.Error("LocalAgent exited", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	cfg := config.Load()
 	ag, err := agent.New(cfg, log)
 	if err != nil {
-		log.Error("failed to initialize agent", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize agent: %w", err)
 	}
 	defer func() {
 		if err := ag.Close(); err != nil {
@@ -37,8 +44,7 @@ func main() {
 	if cfg.AutoIndexOnStart {
 		log.Info("indexing workspace on startup", "workspace", cfg.WorkspaceDir)
 		if _, err := ag.Rebuild(ctx); err != nil {
-			log.Error("startup indexing failed", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("startup indexing failed: %w", err)
 		}
 	}
 
@@ -51,13 +57,13 @@ func main() {
 	)
 
 	if err := router.Configure(httpapi.New(app, cfg, log).Register); err != nil {
-		log.Error("failed to configure routes", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to configure routes: %w", err)
 	}
 
 	server := mux.NewServer(cfg.HTTPAddr, router)
 	if err := server.Listen(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		log.Error("server stopped unexpectedly", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("server stopped unexpectedly: %w", err)
 	}
+
+	return nil
 }

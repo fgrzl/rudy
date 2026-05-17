@@ -15,7 +15,7 @@ It combines:
 - Exposes keyword search at `/api/search`
 - Exposes OpenAI-compatible chat completions at `/v1/chat/completions`
 - Injects relevant indexed workspace context into chat prompts automatically
-- Proxies Ollama endpoints such as `/v1/models` and `/v1/embeddings`
+- Advertises a curated chat model catalog through `/v1/models` and proxies Ollama embeddings
 
 ## Environment
 
@@ -26,6 +26,7 @@ Defaults are chosen for local Docker use:
 - `LOCALAGENT_WORKSPACE_DIR=/workspace`
 - `LOCALAGENT_DATA_DIR=/data`
 - `LOCALAGENT_CHAT_MODEL=qwen2.5-coder:7b-instruct`
+- `LOCALAGENT_SUPPORTED_CHAT_MODELS=qwen2.5-coder:7b-instruct,qwen2.5-coder:14b-instruct,qwen2.5-coder:32b-instruct,qwen3-coder:30b-a3b-instruct,deepseek-coder-v2:16b-lite-instruct,llama3.1:8b-instruct`
 - `LOCALAGENT_EMBEDDING_MODEL=nomic-embed-text`
 - `LOCALAGENT_SEARCH_HIT_LIMIT=8`
 - `LOCALAGENT_CONTEXT_CHUNK_LIMIT=4`
@@ -43,10 +44,15 @@ The app container mounts:
 
 ## First model pull
 
-After Ollama starts, pull the models you want:
+After Ollama starts, pull the models Rudy advertises:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
+docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
+docker compose exec ollama ollama pull qwen2.5-coder:32b-instruct
+docker compose exec ollama ollama pull qwen3-coder:30b-a3b-instruct
+docker compose exec ollama ollama pull deepseek-coder-v2:16b-lite-instruct
+docker compose exec ollama ollama pull llama3.1:8b-instruct
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 

@@ -1,22 +1,19 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
   go: "1.25"
   modules-download-mode: readonly
 
-output:
-  sort-results: true
-
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - errcheck
     - errorlint
     - exhaustive
     - gocritic
-    - gofumpt
-    - goimports
     - govet
     - ineffassign
     - misspell
@@ -31,6 +28,10 @@ linters:
     - unused
     - whitespace
 
-linters-settings:
-  gofumpt:
-    extra-rules: true
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra-rules: true

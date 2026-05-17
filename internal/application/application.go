@@ -121,7 +121,10 @@ func (a *Application) AugmentChatMessages(ctx context.Context, messages []ChatMe
 	}
 
 	contextText, err := a.SearchContext(ctx, query)
-	if err != nil || strings.TrimSpace(contextText) == "" {
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(contextText) == "" {
 		return messages, nil
 	}
 
@@ -160,10 +163,10 @@ func lastUserMessage(messages []ChatMessage) string {
 	return ""
 }
 
-func preview(content string, max int) string {
+func preview(content string, limit int) string {
 	content = strings.TrimSpace(content)
-	if max <= 0 || len(content) <= max {
+	if limit <= 0 || len(content) <= limit {
 		return content
 	}
-	return content[:max] + "..."
+	return content[:limit] + "..."
 }

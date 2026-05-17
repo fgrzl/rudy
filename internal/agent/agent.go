@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fgrzl/localagent/internal/config"
-	"github.com/fgrzl/localagent/internal/indexer"
 	searchoverlay "github.com/fgrzl/kv/pkg/search"
 	"github.com/fgrzl/kv/pkg/storage/pebble"
+	"github.com/fgrzl/localagent/internal/config"
+	"github.com/fgrzl/localagent/internal/indexer"
 )
 
 type Agent struct {

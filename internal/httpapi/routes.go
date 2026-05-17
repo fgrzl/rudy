@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -76,9 +77,13 @@ func (api *API) Register(router *mux.Router) {
 	})
 
 	v1 := router.Group("/v1")
-	v1.GET("/models", api.proxyHandler("/v1/models"))
+	v1.GET("/models", api.modelsHandler())
 	v1.POST("/embeddings", api.proxyHandler("/v1/embeddings"))
 	v1.POST("/chat/completions", api.chatCompletionHandler())
+
+	router.GET("/models", api.modelsHandler())
+	router.POST("/embeddings", api.proxyHandler("/v1/embeddings"))
+	router.POST("/chat/completions", api.chatCompletionHandler())
 }
 
 func (api *API) searchHandler() mux.HandlerFunc {
@@ -103,6 +108,47 @@ func (api *API) searchHandler() mux.HandlerFunc {
 		}
 
 		c.OK(response)
+	}
+}
+
+func (api *API) modelsHandler() mux.HandlerFunc {
+	return func(c mux.RouteContext) {
+		req := c.Request()
+		if req == nil {
+			c.ServerError("Ollama proxy failed", "missing request")
+			return
+		}
+
+		resp, body, err := fetchUpstream(req, api.client, api.cfg.OllamaBaseURL, "/v1/models", nil)
+		if err != nil {
+			api.log.Error("ollama models proxy failed", "err", err)
+			http.Error(c.Response(), err.Error(), http.StatusBadGateway)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			if err := writeUpstreamResponse(c.Response(), resp, body); err != nil {
+				api.log.Error("ollama models proxy failed", "err", err)
+			}
+			return
+		}
+
+		merged, err := mergeModelCatalog(body, api.cfg.SupportedChatModels)
+		if err != nil {
+			api.log.Debug("using upstream model catalog", "err", err)
+			if err := writeUpstreamResponse(c.Response(), resp, body); err != nil {
+				api.log.Error("ollama models proxy failed", "err", err)
+			}
+			return
+		}
+
+		copyHeaders(c.Response().Header(), resp.Header)
+		c.Response().Header().Set("Content-Type", "application/json")
+		c.Response().WriteHeader(http.StatusOK)
+		_, err = c.Response().Write(merged)
+		if err != nil {
+			api.log.Error("ollama models proxy failed", "err", err)
+		}
 	}
 }
 
@@ -168,39 +214,109 @@ func (api *API) proxyHandler(path string) mux.HandlerFunc {
 }
 
 func forwardRequest(w http.ResponseWriter, r *http.Request, client *http.Client, baseURL, path string, overrideBody []byte) error {
+	resp, body, err := fetchUpstream(r, client, baseURL, path, overrideBody)
+	if err != nil {
+		return err
+	}
+	return writeUpstreamResponse(w, resp, body)
+}
+
+func fetchUpstream(r *http.Request, client *http.Client, baseURL, path string, overrideBody []byte) (*http.Response, []byte, error) {
 	var body io.Reader
 	if overrideBody != nil {
 		body = bytes.NewReader(overrideBody)
 	} else if r.Body != nil {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		body = bytes.NewReader(data)
 	}
 
 	target, err := url.Parse(strings.TrimRight(baseURL, "/") + path)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), body)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	copyHeaders(req.Header, r.Header)
 	req.Header.Del("Host")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resp, responseBody, nil
+}
+
+func writeUpstreamResponse(w http.ResponseWriter, resp *http.Response, body []byte) error {
 	copyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	_, err = io.Copy(w, resp.Body)
+	_, err := w.Write(body)
 	return err
+}
+
+func mergeModelCatalog(body []byte, supported []string) ([]byte, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+
+	rawData, ok := payload["data"]
+	if !ok {
+		return nil, errors.New("models response missing data")
+	}
+
+	data, ok := rawData.([]any)
+	if !ok {
+		return nil, errors.New("models response data is not an array")
+	}
+
+	seen := make(map[string]struct{}, len(data)+len(supported))
+	for _, item := range data {
+		model, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if id, _ := model["id"].(string); id != "" {
+			seen[id] = struct{}{}
+		}
+	}
+
+	for _, modelID := range supported {
+		modelID = strings.TrimSpace(modelID)
+		if modelID == "" {
+			continue
+		}
+		if _, ok := seen[modelID]; ok {
+			continue
+		}
+		data = append(data, map[string]any{
+			"id":       modelID,
+			"object":   "model",
+			"owned_by": "ollama",
+		})
+		seen[modelID] = struct{}{}
+	}
+
+	if object, _ := payload["object"].(string); strings.TrimSpace(object) == "" {
+		payload["object"] = "list"
+	}
+	payload["data"] = data
+
+	return json.Marshal(payload)
 }
 
 func copyHeaders(dst, src http.Header) {
