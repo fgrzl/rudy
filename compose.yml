@@ -18,6 +18,11 @@ services:
       LOCALAGENT_OLLAMA_URL: "http://ollama:11434"
       LOCALAGENT_WORKSPACE_DIR: "/workspace"
       LOCALAGENT_DATA_DIR: "/data"
+      LOCALAGENT_CHAT_MODEL: "qwen2.5-coder:7b-instruct"
+      LOCALAGENT_EMBEDDING_MODEL: "nomic-embed-text"
+      LOCALAGENT_SEARCH_HIT_LIMIT: "8"
+      LOCALAGENT_CONTEXT_CHUNK_LIMIT: "4"
+      LOCALAGENT_REQUEST_TIMEOUT: "90s"
       LOCALAGENT_AUTO_INDEX_ON_START: "true"
     ports:
       - "8080:8080"

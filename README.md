@@ -1,6 +1,6 @@
 # LocalAgent
 
-LocalAgent is a local coding assistant stack for your machine.
+LocalAgent is a local coding backend for OpenCode and other OpenAI-compatible clients.
 
 It combines:
 - Go for the service layer
@@ -27,6 +27,9 @@ Defaults are chosen for local Docker use:
 - `LOCALAGENT_DATA_DIR=/data`
 - `LOCALAGENT_CHAT_MODEL=qwen2.5-coder:7b-instruct`
 - `LOCALAGENT_EMBEDDING_MODEL=nomic-embed-text`
+- `LOCALAGENT_SEARCH_HIT_LIMIT=8`
+- `LOCALAGENT_CONTEXT_CHUNK_LIMIT=4`
+- `LOCALAGENT_REQUEST_TIMEOUT=90s`
 
 ## Run with Docker
 
@@ -46,6 +49,12 @@ After Ollama starts, pull the models you want:
 docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
 docker compose exec ollama ollama pull nomic-embed-text
 ```
+
+## OpenCode
+
+OpenCode is the primary coding client for this repo. Point it at `http://localhost:8080/v1` and use the same chat model as the service defaults.
+
+See [opencode/README.md](opencode/README.md) for the exact setup.
 
 ## Helpful endpoints
 

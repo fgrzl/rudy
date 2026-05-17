@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 RUN : "${TARGETOS:=linux}" "${TARGETARCH:=amd64}" \
-	&& CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-s -w" -o /out/localagent ./cmd/localagent
+	&& CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath -ldflags="-s -w" -o /out/localagent ./cmd/agent
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
