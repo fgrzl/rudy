@@ -26,7 +26,7 @@ Defaults are chosen for local Docker use:
 - `LOCALAGENT_WORKSPACE_DIR=/workspace`
 - `LOCALAGENT_DATA_DIR=/data`
 - `LOCALAGENT_CHAT_MODEL=qwen2.5-coder:7b-instruct`
-- `LOCALAGENT_SUPPORTED_CHAT_MODELS=qwen2.5-coder:7b-instruct,qwen2.5-coder:14b-instruct,qwen2.5-coder:32b-instruct,qwen3-coder:30b-a3b-instruct,deepseek-coder-v2:16b-lite-instruct,llama3.1:8b-instruct`
+- `LOCALAGENT_SUPPORTED_CHAT_MODELS=qwen2.5-coder:7b-instruct,qwen2.5-coder:14b-instruct`
 - `LOCALAGENT_EMBEDDING_MODEL=nomic-embed-text`
 - `LOCALAGENT_SEARCH_HIT_LIMIT=8`
 - `LOCALAGENT_CONTEXT_CHUNK_LIMIT=4`
@@ -38,21 +38,25 @@ Defaults are chosen for local Docker use:
 docker compose up --build
 ```
 
-The app container mounts:
-- `./workspace` for the code you want indexed
-- `./data` for Pebble data and the local index manifest
-
-## First model pull
-
-After Ollama starts, pull the models Rudy advertises:
+Pull the chat models Rudy advertises before starting the app if they are not already present in your Ollama volume:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
 docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
-docker compose exec ollama ollama pull qwen2.5-coder:32b-instruct
-docker compose exec ollama ollama pull qwen3-coder:30b-a3b-instruct
-docker compose exec ollama ollama pull deepseek-coder-v2:16b-lite-instruct
-docker compose exec ollama ollama pull llama3.1:8b-instruct
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+The app container mounts:
+- `./workspace` for the code you want indexed
+- `./data` for Pebble data and the local index manifest
+
+## Model pulls
+
+If you run Ollama outside Docker Compose, pull the models Rudy advertises before using OpenCode:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
+docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 

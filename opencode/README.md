@@ -9,15 +9,11 @@ It talks to the local service over the OpenAI-compatible HTTP API.
 docker compose up --build
 ```
 
-After Ollama starts, pull the models Rudy advertises:
+Pull the configured chat models manually before using OpenCode if they are not already present:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
 docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
-docker compose exec ollama ollama pull qwen2.5-coder:32b-instruct
-docker compose exec ollama ollama pull qwen3-coder:30b-a3b-instruct
-docker compose exec ollama ollama pull deepseek-coder-v2:16b-lite-instruct
-docker compose exec ollama ollama pull llama3.1:8b-instruct
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
