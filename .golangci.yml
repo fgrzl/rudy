@@ -1,0 +1,36 @@
+run:
+  timeout: 5m
+  tests: true
+  go: "1.25"
+  modules-download-mode: readonly
+
+output:
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gofumpt
+    - goimports
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+
+linters-settings:
+  gofumpt:
+    extra-rules: true

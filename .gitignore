@@ -1,0 +1,25 @@
+# local runtime data
+/data/
+/workspace/
+bin/
+dist/
+tmp/
+
+# build and test artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.oci
+*.log
+coverage.out
+.coverprofile
+
+# editor and OS clutter
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
