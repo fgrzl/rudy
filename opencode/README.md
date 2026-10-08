@@ -1,52 +1,42 @@
 # OpenCode
 
-OpenCode is the primary client for coding against LocalAgent.
-It talks to the local service over the OpenAI-compatible HTTP API.
+OpenCode connects to Rudy at `http://localhost:8080/v1`. Rudy adds indexed
+workspace context and forwards requests to Docker Model Runner using Qwen3-Coder 30B-A3B.
 
 ## Run the stack
 
 ```bash
-docker compose up --build
+docker desktop enable model-runner --tcp=12434
+docker model pull hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
+docker compose up --build -d
+curl -fsS http://localhost:8080/v1/models
+opencode
 ```
 
-Pull the configured chat models manually before using OpenCode if they are not already present:
+The root [opencode.json](../opencode.json) configures the `rudy` provider and selects
+`rudy/hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M`. OpenCode must be installed separately.
+
+For another project, copy that configuration into its root, or merge the provider
+into `~/.config/opencode/opencode.json`. Set the workspace mount in `compose.yml`
+to the code you want Rudy to index, then rebuild the index:
 
 ```bash
-docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
-docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
-docker compose exec ollama ollama pull nomic-embed-text
+curl -fsS -X POST http://localhost:8080/api/index/rebuild
 ```
 
-## Configure OpenCode
+The model runs with a 16,384-token context and one inference slot. OpenCode
+advertises 14,336 tokens to reserve 2,048 tokens for Rudy's retrieval and message
+framing. Rudy caps retrieved context at 1,024 UTF-8 bytes. OpenCode enables automatic
+compaction, tool-output pruning, and a 2,048-token compaction reserve. Both normal
+chat and compaction use the local model.
 
-Point OpenCode at the local service base URL:
+Rudy preserves tool-call IDs, reasoning fields, and multipart message content,
+and forwards streaming responses incrementally. Requests have a five-minute
+upstream deadline. Model capacity, token estimates, large individual tool outputs,
+and Qwen3-Coder 30B-A3B's tool-use ability can still limit longer coding sessions.
 
-```json
-{
-  "baseUrl": "http://localhost:8080/v1",
-  "model": "qwen2.5-coder:7b-instruct"
-}
-```
+After changing these settings, restart OpenCode. For an existing overflowing
+session, use `/compact` or start a fresh session with `/new`.
 
-Use any of the model IDs Rudy advertises unless you intentionally override it.
-
-If your OpenCode setup expects the root API paths, Rudy also accepts `/chat/completions`, `/models`, and `/embeddings` without the `/v1` prefix.
-
-## Service defaults
-
-- `LOCALAGENT_HTTP_ADDR=:8080`
-- `LOCALAGENT_OLLAMA_URL=http://ollama:11434`
-- `LOCALAGENT_CHAT_MODEL=qwen2.5-coder:7b-instruct`
-- `LOCALAGENT_EMBEDDING_MODEL=nomic-embed-text`
-- `LOCALAGENT_WORKSPACE_DIR=/workspace`
-- `LOCALAGENT_DATA_DIR=/data`
-
-## Direct endpoints
-
-OpenCode uses `/v1/chat/completions` for coding conversations.
-The backend also exposes these helpers if you want to drive it directly:
-
-- `GET /healthz`
-- `GET /api/search?q=golang`
-- `POST /api/index/rebuild`
-- `POST /api/index/file`
+To use Model Runner directly, change the provider base URL to
+`http://localhost:12434/engines/v1`; this bypasses Rudy's workspace retrieval.

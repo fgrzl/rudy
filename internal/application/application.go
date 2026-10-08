@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	searchoverlay "github.com/fgrzl/kv/pkg/search"
@@ -34,8 +35,10 @@ func New(agent Agent, cfg config.Config) *Application {
 }
 
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role            string `json:"role"`
+	Content         string `json:"content"`
+	fields          map[string]json.RawMessage
+	originalContent string
 }
 
 type SearchResult struct {
@@ -111,7 +114,7 @@ func (a *Application) SearchContext(ctx context.Context, query string) (string, 
 	if err != nil {
 		return "", err
 	}
-	return indexer.BuildChatContext(hits, limit, 12000), nil
+	return indexer.BuildChatContext(hits, limit, a.cfg.ContextMaxBytes), nil
 }
 
 func (a *Application) AugmentChatMessages(ctx context.Context, messages []ChatMessage) ([]ChatMessage, error) {

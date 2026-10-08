@@ -5,7 +5,7 @@ LocalAgent is a local coding backend for OpenCode and other OpenAI-compatible cl
 It combines:
 - Go for the service layer
 - Pebble-backed `github.com/fgrzl/kv` search and index storage
-- Ollama for local models
+- Docker Model Runner with Qwen3-Coder 30B-A3B for local inference (Ollama is also supported)
 - a workspace indexer that chunks files into searchable entities
 - mux for the HTTP API layer
 
@@ -17,54 +17,67 @@ It combines:
 - Injects relevant indexed workspace context into chat prompts automatically
 - Advertises a curated chat model catalog through `/v1/models` and proxies Ollama embeddings
 
-## Environment
+## Run with Docker Desktop
 
-Defaults are chosen for local Docker use:
-
-- `LOCALAGENT_HTTP_ADDR=:8080`
-- `LOCALAGENT_OLLAMA_URL=http://ollama:11434`
-- `LOCALAGENT_WORKSPACE_DIR=/workspace`
-- `LOCALAGENT_DATA_DIR=/data`
-- `LOCALAGENT_CHAT_MODEL=qwen2.5-coder:7b-instruct`
-- `LOCALAGENT_SUPPORTED_CHAT_MODELS=qwen2.5-coder:7b-instruct,qwen2.5-coder:14b-instruct`
-- `LOCALAGENT_EMBEDDING_MODEL=nomic-embed-text`
-- `LOCALAGENT_SEARCH_HIT_LIMIT=8`
-- `LOCALAGENT_CONTEXT_CHUNK_LIMIT=4`
-- `LOCALAGENT_REQUEST_TIMEOUT=90s`
-
-## Run with Docker
+The Compose stack uses `hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M` (Q3_K_M, about a 14.7 GB download)
+with a 16,384-token context window and one inference slot. On Apple Silicon, Docker Model Runner runs inference
+on the host with Metal GPU acceleration; Rudy runs in a container.
 
 ```bash
-docker compose up --build
+docker desktop enable model-runner --tcp=12434
+docker model pull hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
+docker compose up --build -d
 ```
 
-Pull the chat models Rudy advertises before starting the app if they are not already present in your Ollama volume:
-
-```bash
-docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
-docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
-docker compose exec ollama ollama pull nomic-embed-text
-```
+Compose declares the model dependency, so it can also pull the model automatically.
+The API is available at `http://localhost:8080/v1`. Allow at least 30 GB of free
+disk space for downloading and importing the model. The model weights occupy
+about 13.7 GiB of memory; context and inference buffers need additional memory.
 
 The app container mounts:
+
 - `./workspace` for the code you want indexed
 - `./data` for Pebble data and the local index manifest
 
-## Model pulls
-
-If you run Ollama outside Docker Compose, pull the models Rudy advertises before using OpenCode:
+Put code in `workspace/`, then rebuild its index:
 
 ```bash
-docker compose exec ollama ollama pull qwen2.5-coder:7b-instruct
-docker compose exec ollama ollama pull qwen2.5-coder:14b-instruct
-docker compose exec ollama ollama pull nomic-embed-text
+curl -fsS -X POST http://localhost:8080/api/index/rebuild
 ```
+
+Verify inference through Rudy:
+
+```bash
+curl -fsS http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M","messages":[{"role":"user","content":"Write a Go function that adds two integers."}],"max_tokens":256,"stream":false}'
+```
+
+## Backend configuration
+
+Compose overrides the service's Ollama defaults with:
+
+- `LOCALAGENT_OLLAMA_URL=http://model-runner.docker.internal/engines`
+- `LOCALAGENT_CHAT_MODEL=hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M`
+- `LOCALAGENT_SUPPORTED_CHAT_MODELS=hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M`
+- `LOCALAGENT_WORKSPACE_DIR=/workspace`
+- `LOCALAGENT_DATA_DIR=/data`
+- `LOCALAGENT_CONTEXT_MAX_BYTES=1024`
+- `LOCALAGENT_REQUEST_TIMEOUT=300s`
+
+Despite its legacy name, `LOCALAGENT_OLLAMA_URL` accepts an OpenAI-compatible
+backend. Rudy appends `/v1/models`, `/v1/chat/completions`, or `/v1/embeddings`.
+For native Ollama, use `http://host.docker.internal:11434` and an Ollama model ID.
+
+Workspace retrieval currently uses keyword search and does not require embeddings.
+The embeddings proxy needs a separately installed embedding model; Qwen3-Coder 30B-A3B is
+a chat model.
 
 ## OpenCode
 
-OpenCode is the primary coding client for this repo. Point it at `http://localhost:8080/v1` and use the same chat model as the service defaults.
-
-See [opencode/README.md](opencode/README.md) for the exact setup.
+The project-level [opencode.json](opencode.json) points OpenCode at Rudy and selects
+Qwen3-Coder 30B-A3B. Run `opencode` from this directory once the stack is running.
+See [opencode/README.md](opencode/README.md) for client configuration and limitations.
 
 ## Helpful endpoints
 

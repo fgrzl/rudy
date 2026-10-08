@@ -23,6 +23,7 @@ type Config struct {
 	ChunkOverlap        int
 	SearchHitLimit      int
 	ContextChunkLimit   int
+	ContextMaxBytes     int
 	AutoIndexOnStart    bool
 	RequestTimeout      time.Duration
 }
@@ -52,6 +53,7 @@ func Load() Config {
 		ChunkOverlap:        envInt("LOCALAGENT_CHUNK_OVERLAP", 256),
 		SearchHitLimit:      envInt("LOCALAGENT_SEARCH_HIT_LIMIT", 8),
 		ContextChunkLimit:   envInt("LOCALAGENT_CONTEXT_CHUNK_LIMIT", 4),
+		ContextMaxBytes:     envInt("LOCALAGENT_CONTEXT_MAX_BYTES", 3072),
 		AutoIndexOnStart:    envBool("LOCALAGENT_AUTO_INDEX_ON_START", true),
 		RequestTimeout:      envDuration("LOCALAGENT_REQUEST_TIMEOUT", 90*time.Second),
 	}

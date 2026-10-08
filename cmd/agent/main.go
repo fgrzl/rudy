@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fgrzl/localagent/internal/agent"
 	"github.com/fgrzl/localagent/internal/application"
@@ -60,7 +61,11 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("failed to configure routes: %w", err)
 	}
 
-	server := mux.NewServer(cfg.HTTPAddr, router)
+	writeTimeout := time.Duration(0)
+	if cfg.RequestTimeout > 0 {
+		writeTimeout = cfg.RequestTimeout + 5*time.Second
+	}
+	server := mux.NewServer(cfg.HTTPAddr, router, mux.WithWriteTimeout(writeTimeout))
 	if err := server.Listen(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("server stopped unexpectedly: %w", err)
 	}

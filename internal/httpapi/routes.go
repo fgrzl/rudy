@@ -194,7 +194,9 @@ func (api *API) chatCompletionHandler() mux.HandlerFunc {
 
 		if err := forwardRequest(c.Response(), req, api.client, api.cfg.OllamaBaseURL, "/v1/chat/completions", augmented); err != nil {
 			api.log.Error("ollama chat proxy failed", "err", err)
-			http.Error(c.Response(), err.Error(), http.StatusBadGateway)
+			if !errors.Is(err, errResponseStarted) {
+				http.Error(c.Response(), err.Error(), http.StatusBadGateway)
+			}
 		}
 	}
 }
@@ -208,57 +210,82 @@ func (api *API) proxyHandler(path string) mux.HandlerFunc {
 		}
 		if err := forwardRequest(c.Response(), req, api.client, api.cfg.OllamaBaseURL, path, nil); err != nil {
 			api.log.Error("ollama proxy failed", "path", path, "err", err)
-			http.Error(c.Response(), err.Error(), http.StatusBadGateway)
+			if !errors.Is(err, errResponseStarted) {
+				http.Error(c.Response(), err.Error(), http.StatusBadGateway)
+			}
 		}
 	}
 }
 
+var errResponseStarted = errors.New("upstream response already started")
+
 func forwardRequest(w http.ResponseWriter, r *http.Request, client *http.Client, baseURL, path string, overrideBody []byte) error {
-	resp, body, err := fetchUpstream(r, client, baseURL, path, overrideBody)
+	resp, err := openUpstream(r, client, baseURL, path, overrideBody)
 	if err != nil {
 		return err
 	}
-	return writeUpstreamResponse(w, resp, body)
+	defer resp.Body.Close()
+	copyHeaders(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			return errors.Join(errResponseStarted, err)
+		}
+		_, err = io.Copy(flushingWriter{w}, resp.Body)
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
+	if err != nil {
+		return errors.Join(errResponseStarted, err)
+	}
+	return nil
+}
+
+type flushingWriter struct{ http.ResponseWriter }
+
+func (w flushingWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err == nil {
+		err = http.NewResponseController(w.ResponseWriter).Flush()
+	}
+	return n, err
 }
 
 func fetchUpstream(r *http.Request, client *http.Client, baseURL, path string, overrideBody []byte) (*http.Response, []byte, error) {
+	resp, err := openUpstream(r, client, baseURL, path, overrideBody)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	return resp, responseBody, err
+}
+
+func openUpstream(r *http.Request, client *http.Client, baseURL, path string, overrideBody []byte) (*http.Response, error) {
 	var body io.Reader
 	if overrideBody != nil {
 		body = bytes.NewReader(overrideBody)
 	} else if r.Body != nil {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		body = bytes.NewReader(data)
 	}
 
 	target, err := url.Parse(strings.TrimRight(baseURL, "/") + path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	copyHeaders(req.Header, r.Header)
 	req.Header.Del("Host")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return resp, responseBody, nil
+	return client.Do(req)
 }
 
 func writeUpstreamResponse(w http.ResponseWriter, resp *http.Response, body []byte) error {
@@ -320,8 +347,14 @@ func mergeModelCatalog(body []byte, supported []string) ([]byte, error) {
 }
 
 func copyHeaders(dst, src http.Header) {
+	hop := map[string]bool{"connection": true, "keep-alive": true, "proxy-authenticate": true, "proxy-authorization": true, "te": true, "trailer": true, "transfer-encoding": true, "upgrade": true, "content-length": true}
+	for _, line := range src.Values("Connection") {
+		for _, name := range strings.Split(line, ",") {
+			hop[strings.ToLower(strings.TrimSpace(name))] = true
+		}
+	}
 	for key, values := range src {
-		if strings.EqualFold(key, "Content-Length") {
+		if hop[strings.ToLower(key)] {
 			continue
 		}
 		for _, value := range values {

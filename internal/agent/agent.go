@@ -75,7 +75,7 @@ func (a *Agent) SearchContext(ctx context.Context, query string, limit int) (str
 	if err != nil {
 		return "", err
 	}
-	return indexer.BuildChatContext(hits, a.cfg.ContextChunkLimit, 12000), nil
+	return indexer.BuildChatContext(hits, a.cfg.ContextChunkLimit, a.cfg.ContextMaxBytes), nil
 }
 
 func (a *Agent) Rebuild(ctx context.Context) (Summary, error) {

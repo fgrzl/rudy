@@ -1,34 +1,34 @@
 services:
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama-data:/root/.ollama
-    restart: unless-stopped
-
   agent:
     build:
       context: .
       dockerfile: cmd/agent/Dockerfile
-    depends_on:
-      - ollama
+    models:
+      - coding
     environment:
       LOCALAGENT_HTTP_ADDR: ":8080"
-      LOCALAGENT_OLLAMA_URL: "http://ollama:11434"
+      # Rudy appends /v1 to this OpenAI-compatible backend URL.
+      LOCALAGENT_OLLAMA_URL: "http://model-runner.docker.internal/engines"
       LOCALAGENT_WORKSPACE_DIR: "/workspace"
       LOCALAGENT_DATA_DIR: "/data"
-      LOCALAGENT_CHAT_MODEL: "qwen2.5-coder:7b-instruct"
-      LOCALAGENT_SUPPORTED_CHAT_MODELS: "qwen2.5-coder:7b-instruct,qwen2.5-coder:14b-instruct"
-      LOCALAGENT_EMBEDDING_MODEL: "nomic-embed-text"
+      LOCALAGENT_CHAT_MODEL: "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M"
+      LOCALAGENT_SUPPORTED_CHAT_MODELS: "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M"
       LOCALAGENT_SEARCH_HIT_LIMIT: "8"
-      LOCALAGENT_CONTEXT_CHUNK_LIMIT: "4"
-      LOCALAGENT_REQUEST_TIMEOUT: "90s"
+      LOCALAGENT_CONTEXT_CHUNK_LIMIT: "2"
+      LOCALAGENT_CONTEXT_MAX_BYTES: "1024"
+      LOCALAGENT_REQUEST_TIMEOUT: "300s"
       LOCALAGENT_AUTO_INDEX_ON_START: "true"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./workspace:/workspace
       - ./data:/data
     restart: unless-stopped
 
-volumes:
-  ollama-data:
+models:
+  coding:
+    model: hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
+    context_size: 16384
+    runtime_flags:
+      - "--parallel"
+      - "1"

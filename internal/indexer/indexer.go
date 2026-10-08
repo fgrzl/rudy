@@ -162,13 +162,17 @@ func BuildChatContext(hits []searchoverlay.SearchHit, maxChunks, maxChars int) s
 		maxChunks = 4
 	}
 	if maxChars <= 0 {
-		maxChars = 12000
+		maxChars = 3072
 	}
 
 	var b strings.Builder
-	b.WriteString("Indexed workspace context:\n")
+	header := "Indexed workspace context:\n"
+	if maxChars <= len(header) {
+		return ""
+	}
+	b.WriteString(header)
 	count := 0
-	chars := 0
+	chars := len(header)
 	for _, hit := range hits {
 		if count >= maxChunks || chars >= maxChars {
 			break
@@ -182,9 +186,10 @@ func BuildChatContext(hits []searchoverlay.SearchHit, maxChunks, maxChars int) s
 			continue
 		}
 		if len(content) > 2500 {
-			content = content[:2500] + "..."
+			content = truncateUTF8(content, 2500) + "..."
 		}
 		entry := fmt.Sprintf("\n[%d] %s\n%s\n", count+1, payload.RelativePath, content)
+		entry = truncateUTF8(entry, maxChars-chars)
 		b.WriteString(entry)
 		count++
 		chars += len(entry)
@@ -193,6 +198,16 @@ func BuildChatContext(hits []searchoverlay.SearchHit, maxChunks, maxChars int) s
 		return ""
 	}
 	return b.String()
+}
+
+func truncateUTF8(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	for limit > 0 && !utf8.RuneStart(text[limit]) {
+		limit--
+	}
+	return text[:limit]
 }
 
 func splitTextIntoChunks(text string, size, overlap int) ([]string, []int) {
