@@ -4,6 +4,7 @@
 bin/
 dist/
 tmp/
+/rudy
 
 # build and test artifacts
 *.exe

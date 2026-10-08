@@ -1,14 +1,32 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  model-pull:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    command: ["pull", "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
   agent:
     build:
       context: .
       dockerfile: cmd/agent/Dockerfile
-    models:
-      - coding
     environment:
       LOCALAGENT_HTTP_ADDR: ":8080"
-      # Rudy appends /v1 to this OpenAI-compatible backend URL.
-      LOCALAGENT_OLLAMA_URL: "http://model-runner.docker.internal/engines"
+      LOCALAGENT_OLLAMA_URL: "http://ollama:11434"
       LOCALAGENT_WORKSPACE_DIR: "/workspace"
       LOCALAGENT_DATA_DIR: "/data"
       LOCALAGENT_CHAT_MODEL: "hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M"
@@ -19,16 +37,14 @@ services:
       LOCALAGENT_REQUEST_TIMEOUT: "300s"
       LOCALAGENT_AUTO_INDEX_ON_START: "true"
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     volumes:
       - ./workspace:/workspace
       - ./data:/data
+    depends_on:
+      model-pull:
+        condition: service_completed_successfully
     restart: unless-stopped
 
-models:
-  coding:
-    model: hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
-    context_size: 16384
-    runtime_flags:
-      - "--parallel"
-      - "1"
+volumes:
+  ollama-data:

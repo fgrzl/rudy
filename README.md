@@ -5,7 +5,7 @@ LocalAgent is a local coding backend for OpenCode and other OpenAI-compatible cl
 It combines:
 - Go for the service layer
 - Pebble-backed `github.com/fgrzl/kv` search and index storage
-- Docker Model Runner with Qwen3-Coder 30B-A3B for local inference (Ollama is also supported)
+- Ollama with Qwen3-Coder 30B-A3B for local inference
 - a workspace indexer that chunks files into searchable entities
 - mux for the HTTP API layer
 
@@ -19,20 +19,19 @@ It combines:
 
 ## Run with Docker Desktop
 
-The Compose stack uses `hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M` (Q3_K_M, about a 14.7 GB download)
-with a 16,384-token context window and one inference slot. On Apple Silicon, Docker Model Runner runs inference
-on the host with Metal GPU acceleration; Rudy runs in a container.
+The Compose stack runs both Rudy and Ollama and uses
+`hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M` (Q3_K_M, about a 14.7 GB download).
+The model weights occupy about 13.7 GiB of memory; allocate at least 24 GiB to Docker Desktop so there is room
+for context and inference buffers.
 
 ```bash
-docker desktop enable model-runner --tcp=12434
-docker model pull hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
 docker compose up --build -d
 ```
 
-Compose declares the model dependency, so it can also pull the model automatically.
-The API is available at `http://localhost:8080/v1`. Allow at least 30 GB of free
-disk space for downloading and importing the model. The model weights occupy
-about 13.7 GiB of memory; context and inference buffers need additional memory.
+Compose starts Ollama and pulls the model automatically before starting Rudy.
+The API is available at `http://localhost:8080/v1` and, on a trusted LAN, at
+`http://<host-ip>:8080/v1`. Allow at least 30 GB of free disk space for downloading
+and importing the model.
 
 The app container mounts:
 
@@ -57,7 +56,7 @@ curl -fsS http://localhost:8080/v1/chat/completions \
 
 Compose overrides the service's Ollama defaults with:
 
-- `LOCALAGENT_OLLAMA_URL=http://model-runner.docker.internal/engines`
+- `LOCALAGENT_OLLAMA_URL=http://ollama:11434`
 - `LOCALAGENT_CHAT_MODEL=hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M`
 - `LOCALAGENT_SUPPORTED_CHAT_MODELS=hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M`
 - `LOCALAGENT_WORKSPACE_DIR=/workspace`
@@ -65,9 +64,8 @@ Compose overrides the service's Ollama defaults with:
 - `LOCALAGENT_CONTEXT_MAX_BYTES=1024`
 - `LOCALAGENT_REQUEST_TIMEOUT=300s`
 
-Despite its legacy name, `LOCALAGENT_OLLAMA_URL` accepts an OpenAI-compatible
-backend. Rudy appends `/v1/models`, `/v1/chat/completions`, or `/v1/embeddings`.
-For native Ollama, use `http://host.docker.internal:11434` and an Ollama model ID.
+`LOCALAGENT_OLLAMA_URL` accepts an OpenAI-compatible backend. Rudy appends
+`/v1/models`, `/v1/chat/completions`, or `/v1/embeddings`.
 
 Workspace retrieval currently uses keyword search and does not require embeddings.
 The embeddings proxy needs a separately installed embedding model; Qwen3-Coder 30B-A3B is

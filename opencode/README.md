@@ -1,13 +1,11 @@
 # OpenCode
 
 OpenCode connects to Rudy at `http://localhost:8080/v1`. Rudy adds indexed
-workspace context and forwards requests to Docker Model Runner using Qwen3-Coder 30B-A3B.
+workspace context and forwards requests to the Compose-managed Ollama service using Qwen3-Coder 30B-A3B.
 
 ## Run the stack
 
 ```bash
-docker desktop enable model-runner --tcp=12434
-docker model pull hf.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:Q3_K_M
 docker compose up --build -d
 curl -fsS http://localhost:8080/v1/models
 opencode
@@ -38,5 +36,5 @@ and Qwen3-Coder 30B-A3B's tool-use ability can still limit longer coding session
 After changing these settings, restart OpenCode. For an existing overflowing
 session, use `/compact` or start a fresh session with `/new`.
 
-To use Model Runner directly, change the provider base URL to
-`http://localhost:12434/engines/v1`; this bypasses Rudy's workspace retrieval.
+To use Ollama directly, expose its port in `compose.yml` and point the provider at
+`http://localhost:11434/v1`; this bypasses Rudy's workspace retrieval.
